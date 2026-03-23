@@ -43,7 +43,7 @@ export default function PagosPage() {
   }, []);
 
   const filteredClients = searchTerm.length >= 2 
-    ? clients.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || (c.curp && c.curp.toLowerCase().includes(searchTerm.toLowerCase())))
+    ? clients.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || (c.email && c.email.toLowerCase().includes(searchTerm.toLowerCase())))
     : [];
 
   const handleProcessPayment = async () => {

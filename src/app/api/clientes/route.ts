@@ -18,7 +18,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { first_name, last_name, curp, email, phone, photo_url } = body;
+    const { first_name, last_name, birth_date, age, email, phone, photo_url } = body;
     
     // Validación básica
     if (!first_name || !last_name) {
@@ -27,11 +27,11 @@ export async function POST(request: Request) {
 
     // Try multiple columns since we might not have photo_url depending on DB updates
     const query = `
-      INSERT INTO clients (first_name, last_name, curp, email, phone) 
-      VALUES ($1, $2, $3, $4, $5) 
+      INSERT INTO clients (first_name, last_name, email, phone, birth_date, age, photo_url) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7) 
       RETURNING *;
     `;
-    const values = [first_name, last_name, curp, email, phone];
+    const values = [first_name, last_name, email, phone, birth_date || null, age || null, photo_url || null];
     
     // Ejecutamos la consulta y retornamos el cliente insertado
     const { rows } = await pool.query(query, values);
@@ -39,10 +39,6 @@ export async function POST(request: Request) {
     
   } catch (error: any) {
     console.error('Database Error:', error);
-    // Manejo de error de CURP duplicada u otros errores de integridad
-    if (error.code === '23505') {
-       return NextResponse.json({ error: 'El CURP ya está registrado en el sistema' }, { status: 409 });
-    }
-    return NextResponse.json({ error: 'Error al crear el cliente' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Error al crear el cliente' }, { status: 500 });
   }
 }

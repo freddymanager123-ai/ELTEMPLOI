@@ -4,7 +4,7 @@ import { Search, Plus, MoreVertical, Filter, Download, UserPlus, X, Edit, Trash2
 
 export default function ClientesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ id: null as string | null, first_name: '', last_name: '', curp: '', email: '', phone: '', photo: '' });
+  const [formData, setFormData] = useState({ id: null as string | null, first_name: '', last_name: '', birth_date: '', age: '', email: '', phone: '', photo: '' });
   const [clients, setClients] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("TODOS");
@@ -32,7 +32,8 @@ export default function ClientesPage() {
               ...c,
               id: c.id.toString(), 
               name: fullName,
-              curp: c.curp || "PENDIENTE",
+              birth_date: c.birth_date ? new Date(c.birth_date).toISOString().split('T')[0] : "",
+              age: c.age || "N/A",
               phone: c.phone || "N/A",
               email: c.email || "N/A",
               photo: c.photo_url || "",
@@ -60,7 +61,8 @@ export default function ClientesPage() {
       id: client.id || null,
       first_name: client.first_name || parts[0] || '',
       last_name: client.last_name || parts.slice(1).join(' ') || '',
-      curp: client.curp === "PENDIENTE" ? "" : client.curp,
+      birth_date: client.birth_date || "",
+      age: client.age !== "N/A" ? client.age : "",
       email: client.email === "N/A" ? "" : client.email,
       phone: client.phone === "N/A" ? "" : client.phone,
       photo: client.photo || ''
@@ -180,7 +182,8 @@ export default function ClientesPage() {
       const payload = {
          first_name: formData.first_name,
          last_name: formData.last_name,
-         curp: formData.curp,
+         birth_date: formData.birth_date || null,
+         age: formData.age || null,
          phone: formData.phone,
          email: formData.email,
          photo_url: formData.photo 
@@ -204,7 +207,7 @@ export default function ClientesPage() {
       if (res.ok) {
          await fetchClients();
          setIsModalOpen(false);
-         setFormData({ id: null, first_name: '', last_name: '', curp: '', email: '', phone: '', photo: '' });
+         setFormData({ id: null, first_name: '', last_name: '', birth_date: '', age: '', email: '', phone: '', photo: '' });
       } else {
          const errorData = await res.json();
          alert(`Error: ${errorData.error || 'Ocurrió un problema al guardar el cliente.'}`);
@@ -217,7 +220,6 @@ export default function ClientesPage() {
 
   const filteredClients = clients.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          c.curp.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           c.email.toLowerCase().includes(searchTerm.toLowerCase());
     
     if (filterStatus === "TODOS") return matchesSearch;
@@ -228,11 +230,11 @@ export default function ClientesPage() {
   });
 
   const exportToCSV = () => {
-    const headers = ["Nombre Completo", "CURP/DNI", "Telefono", "Email", "Status Membresia", "Vencimiento"];
+    const headers = ["Nombre Completo", "Edad", "Telefono", "Email", "Status Membresia", "Vencimiento"];
     const csvRows = filteredClients.map(client => {
       return [
         `"${client.name}"`,
-        `"${client.curp}"`,
+        `"${client.age}"`,
         `"${client.phone}"`,
         `"${client.email}"`,
         `"${client.status}"`,
@@ -268,7 +270,7 @@ export default function ClientesPage() {
           </button>
           <button 
             onClick={() => {
-              setFormData({ id: null, first_name: '', last_name: '', curp: '', email: '', phone: '', photo: '' });
+              setFormData({ id: null, first_name: '', last_name: '', birth_date: '', age: '', email: '', phone: '', photo: '' });
               setIsModalOpen(true);
             }}
             className="flex-2 sm:flex-none flex items-center justify-center gap-2 bg-gold hover:bg-[#b8952a] text-black px-5 py-2.5 rounded-xl font-extrabold transition shadow-[0_0_15px_rgba(212,175,55,0.3)]"
@@ -287,7 +289,7 @@ export default function ClientesPage() {
             type="text" 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar predicción: nombre, código, CURP..." 
+            placeholder="Buscar predicción: nombre, email..." 
             className="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold transition"
           />
         </div>
@@ -317,7 +319,7 @@ export default function ClientesPage() {
             <thead className="bg-slate-800/60">
               <tr className="text-slate-400 text-sm border-b border-slate-700/80">
                 <th className="px-6 py-4 font-semibold">Cliente</th>
-                <th className="px-6 py-4 font-semibold">Id / CURP</th>
+                <th className="px-6 py-4 font-semibold">Edad</th>
                 <th className="px-6 py-4 font-semibold">Contacto</th>
                 <th className="px-6 py-4 font-semibold">Status Membresía</th>
                 <th className="px-6 py-4 font-semibold">Vencimiento</th>
@@ -338,7 +340,7 @@ export default function ClientesPage() {
                     </div>
                     {client.name}
                   </td>
-                  <td className="px-6 py-4 text-slate-400 font-mono text-xs">{client.curp}</td>
+                  <td className="px-6 py-4 text-slate-400 font-medium">{client.age} años</td>
                   <td className="px-6 py-4">
                     <p className="text-slate-200">{client.phone}</p>
                     <p className="text-slate-500 text-xs">{client.email}</p>
@@ -430,9 +432,38 @@ export default function ClientesPage() {
                    </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-slate-400 mb-2">CURP / Identificación</label>
-                  <input type="text" value={formData.curp} onChange={e => setFormData({...formData, curp: e.target.value})} className="w-full bg-slate-900 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold transition font-mono uppercase shadow-inner" placeholder="18 Caracteres" maxLength={18} />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-400 mb-2">Fecha de Nacimiento</label>
+                    <input 
+                      type="date" 
+                      value={formData.birth_date} 
+                      onChange={e => {
+                        const bd = e.target.value;
+                        let ageStr = formData.age;
+                        if (bd) {
+                           const bdDate = new Date(bd);
+                           const ageDiffMs = Date.now() - bdDate.getTime();
+                           const ageDate = new Date(ageDiffMs);
+                           ageStr = String(Math.abs(ageDate.getUTCFullYear() - 1970));
+                        }
+                        setFormData({...formData, birth_date: bd, age: ageStr});
+                      }} 
+                      className="w-full bg-slate-900 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold transition shadow-inner" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-400 mb-2">Edad</label>
+                    <input 
+                      type="number" 
+                      value={formData.age} 
+                      onChange={e => setFormData({...formData, age: e.target.value})} 
+                      className="w-full bg-slate-900 border border-slate-700/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold transition shadow-inner" 
+                      placeholder="Ej. 25" 
+                      min={0}
+                      max={120}
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -490,8 +521,8 @@ export default function ClientesPage() {
                       <p className="text-white font-bold text-lg">{viewClient.name}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-slate-500 uppercase font-semibold mb-1">ID / CURP</p>
-                      <p className="text-white font-mono">{viewClient.curp}</p>
+                      <p className="text-xs text-slate-500 uppercase font-semibold mb-1">Edad</p>
+                      <p className="text-white font-medium">{viewClient.age !== "N/A" ? `${viewClient.age} años` : "No registrada"}</p>
                     </div>
                     <div>
                       <p className="text-xs text-slate-500 uppercase font-semibold mb-1">Teléfono Móvil</p>

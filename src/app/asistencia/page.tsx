@@ -59,7 +59,7 @@ export default function AsistenciaPage() {
     if (!searchTerm.trim()) return;
 
     const term = searchTerm.toLowerCase().trim();
-    let match = clients.find(c => (c.curp && c.curp.toLowerCase() === term) || c.id === term);
+    let match = clients.find(c => c.id === term);
     
     if (!match) {
        match = clients.find(c => c.name.toLowerCase().includes(term));
@@ -178,7 +178,7 @@ export default function AsistenciaPage() {
                      </div>
                      
                      <h2 className="text-4xl md:text-5xl font-black text-white mb-2 leading-tight">{lastScanned.name}</h2>
-                     <p className="text-slate-400 font-mono text-lg mb-8 uppercase tracking-widest">{lastScanned.curp}</p>
+                     <p className="text-slate-400 font-mono text-lg mb-8 uppercase tracking-widest">Socio #{lastScanned.id}</p>
 
                      <div className={`w-full rounded-2xl p-6 border-2 flex items-center justify-center gap-4 ${lastScanned.entry.isOk ? 'bg-[#22C55E] border-[#16a34a] text-black shadow-[0_0_20px_rgba(34,197,94,0.4)]' : 'bg-danger border-red-700 text-white shadow-[0_0_20px_rgba(239,68,68,0.4)]'}`}>
                         {lastScanned.entry.isOk ? <UserCheck size={40} /> : <AlertBannerIcon />}

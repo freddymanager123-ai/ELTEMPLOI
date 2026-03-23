@@ -20,10 +20,11 @@ CREATE TABLE clients (
     id SERIAL PRIMARY KEY,
     first_name VARCHAR(100) NOT NULL,
     last_name VARCHAR(100) NOT NULL,
-    curp VARCHAR(18) UNIQUE,
+    birth_date DATE,
+    age INT,
     email VARCHAR(150),
     phone VARCHAR(20),
-    status VARCHAR(20) DEFAULT 'ACTIVE',
+    status VARCHAR(20) DEFAULT 'INACTIVO (SIN PLAN)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

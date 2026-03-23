@@ -5,7 +5,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   try {
     const id = params.id;
     const body = await request.json();
-    const { first_name, last_name, curp, email, phone, photo_url } = body;
+    const { first_name, last_name, birth_date, age, email, phone, photo_url } = body;
     
     // Construir actualización dinámica (por si no envían todos los campos)
     const query = `
@@ -13,15 +13,16 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       SET 
         first_name = COALESCE($1, first_name),
         last_name = COALESCE($2, last_name),
-        curp = COALESCE($3, curp),
-        email = COALESCE($4, email),
-        phone = COALESCE($5, phone)
-      WHERE id = $6
+        birth_date = COALESCE($3, birth_date),
+        age = COALESCE($4, age),
+        email = COALESCE($5, email),
+        phone = COALESCE($6, phone),
+        photo_url = COALESCE($7, photo_url)
+      WHERE id = $8
       RETURNING *;
     `;
-    // Nota: Si agregaste la columna photo_url, habría que incluirla en el UPDATE
     
-    const values = [first_name, last_name, curp, email, phone, id];
+    const values = [first_name, last_name, birth_date, age, email, phone, photo_url, id];
     
     const { rows } = await pool.query(query, values);
     
