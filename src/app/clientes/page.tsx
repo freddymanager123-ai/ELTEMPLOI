@@ -15,7 +15,6 @@ export default function ClientesPage() {
 
   const fetchClients = async () => {
     try {
-      // Parallel fetch for clients and global transactions
       const [clientRes, finanzasRes] = await Promise.all([
         fetch('/api/clientes'),
         fetch('/api/finanzas').catch(() => ({ ok: false, json: () => [] }))
@@ -25,10 +24,48 @@ export default function ClientesPage() {
         const data = await clientRes.json();
         const trans = finanzasRes.ok ? await (finanzasRes as Response).json() : [];
 
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const parseDate = (dateStr: string) => {
+          if (!dateStr) return null;
+          const parts = dateStr.split('/');
+          if (parts.length === 3) return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
+          return null;
+        };
+
         const formatted = data.map((c: any) => {
            const fullName = `${c.first_name} ${c.last_name}`;
            const clientTrans = trans.filter((t: any) => t.cliente && typeof t.cliente === 'string' && t.cliente.trim().toLowerCase() === fullName.trim().toLowerCase());
            const hasPending = clientTrans.some((t: any) => t.estadoCredito === 'PENDIENTE');
+           
+           // Find latest membership payment with a vencimiento date
+           const membresias = clientTrans
+             .filter((t: any) => t.reference_type === 'MEMBRESIA' && t.fecha_vencimiento)
+             .sort((a: any, b: any) => {
+               const da = parseDate(a.fecha) || new Date(0);
+               const db = parseDate(b.fecha) || new Date(0);
+               return db.getTime() - da.getTime();
+             });
+
+           let endDateStr = 'N/A';
+           let isExpired = false;
+
+           if (membresias.length > 0) {
+             const latestPlan = membresias[0];
+             const vencimiento = parseDate(latestPlan.fecha_vencimiento);
+             if (vencimiento) {
+               endDateStr = latestPlan.fecha_vencimiento;
+               isExpired = vencimiento.getTime() < today.getTime();
+             }
+           }
+
+           const isActive = c.status === 'ACTIVO (PLAN)' || c.status === 'ACTIVE';
+           const stateClass = isExpired && isActive
+             ? 'bg-danger/10 text-danger border-danger/20'
+             : isActive
+               ? 'bg-gold/10 text-gold border-gold/20'
+               : 'bg-slate-700/30 text-slate-400 border-slate-600/30';
            
            return {
               ...c,
@@ -40,9 +77,9 @@ export default function ClientesPage() {
               email: c.email || "N/A",
               photo: c.photo_url || "",
               status: c.status === 'DELETED' ? 'INACTIVO' : c.status || 'ACTIVO',
-              stateClass: c.status === 'DELETED' ? 'bg-danger/10 text-danger border-danger/20' : 'bg-gold/10 text-gold border-gold/20',
-              end: "N/A", 
-              alert: false,
+              stateClass,
+              end: endDateStr,
+              alert: isExpired,
               hasPending
            };
         });

@@ -140,13 +140,22 @@ export default function PagosPage() {
       }
 
       // Add to treasury
+      const paymentDateStr = new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const planDays = selectedPlan?.days || 30;
+      // Calculate expiry date
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + planDays);
+      const expiryDateStr = expiryDate.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
       const transaccion = {
         id: "TKT-" + Date.now().toString().slice(-6),
-        fecha: new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+        fecha: paymentDateStr,
         hora: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
         cliente: selectedClient ? selectedClient.name : "Invitado",
         clienteActivo: true,
         reference_type: 'MEMBRESIA',
+        plan_days: planDays,
+        fecha_vencimiento: expiryDateStr,
         elementos: [{ name: `Membresía: ${selectedPlan?.name}`, quantity: 1, price: selectedPlan?.price }],
         total: selectedPlan?.price || 0,
         metodo: paymentMethod === 'CARD_TERMINAL' ? 'CARD' : paymentMethod,
