@@ -21,47 +21,62 @@ export default function Dashboard() {
 
   useEffect(() => {
     // 1. Ingresos y Cobros
-    const trans = JSON.parse(localStorage.getItem('templo_transacciones') || '[]');
-    setUltimosCobros(trans.slice(0, 5)); // Last 5
+    const fetchDashboardData = async () => {
+      try {
+        const res = await fetch('/api/finanzas');
+        const trans = res.ok ? await res.json() : [];
+        setUltimosCobros(trans.slice(0, 5)); // Last 5
+        
+        // Calcular fechas
+        const today = new Date();
+        today.setHours(0,0,0,0);
+
+        const dayOfWeek = today.getDay();
+        const diffToMonday = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(diffToMonday);
+        
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+        let iDia = 0, iSemana = 0, iMes = 0, pend = 0;
+
+        trans.forEach((t: any) => {
+           if (t.estadoCredito === 'PENDIENTE') {
+              pend += (t.total || 0); // Deuda pendiente sumada
+           } else {
+              // Si está pagado (CASH, CARD, etc) o fue CRÉDITO LIQUIDADO
+              const rawDateStr = t.fechaLiquidacion || t.fecha;
+              const tDate = parseDate(rawDateStr);
+              
+              if (tDate.getTime() >= today.getTime()) iDia += (t.total || 0);
+              if (tDate.getTime() >= startOfWeek.getTime()) iSemana += (t.total || 0);
+              if (tDate.getTime() >= startOfMonth.getTime()) iMes += (t.total || 0);
+           }
+        });
+
+        // 2. Inventario
+        let lowStock: any[] = [];
+        try {
+          const prodRes = await fetch('/api/productos');
+          if (prodRes.ok) {
+            const prods = await prodRes.json();
+            lowStock = prods.filter((p: any) => p.stock <= 3).sort((a: any, b: any) => a.stock - b.stock);
+          }
+        } catch(e){}
+        
+        setStats({
+          ingresosDia: iDia,
+          ingresosSemana: iSemana,
+          ingresosMes: iMes,
+          pagosPendientes: pend,
+          lowStockList: lowStock
+        });
+      } catch (err) {
+        console.error("Dashboard error:", err);
+      }
+    };
     
-    // Calcular fechas
-    const today = new Date();
-    today.setHours(0,0,0,0);
-
-    const dayOfWeek = today.getDay();
-    const diffToMonday = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-    const startOfWeek = new Date(today);
-    startOfWeek.setDate(diffToMonday);
-    
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-
-    let iDia = 0, iSemana = 0, iMes = 0, pend = 0;
-
-    trans.forEach((t: any) => {
-       if (t.estadoCredito === 'PENDIENTE') {
-          pend += (t.total || 0); // Deuda pendiente sumada
-       } else {
-          // Si está pagado (CASH, CARD, etc) o fue CRÉDITO LIQUIDADO
-          const rawDateStr = t.fechaLiquidacion || t.fecha;
-          const tDate = parseDate(rawDateStr);
-          
-          if (tDate.getTime() >= today.getTime()) iDia += (t.total || 0);
-          if (tDate.getTime() >= startOfWeek.getTime()) iSemana += (t.total || 0);
-          if (tDate.getTime() >= startOfMonth.getTime()) iMes += (t.total || 0);
-       }
-    });
-
-    // 2. Inventario
-    const prods = JSON.parse(localStorage.getItem('templo_productos_data') || '[]');
-    const lowStock = prods.filter((p: any) => p.stock <= 3).sort((a: any, b: any) => a.stock - b.stock);
-    
-    setStats({
-      ingresosDia: iDia,
-      ingresosSemana: iSemana,
-      ingresosMes: iMes,
-      pagosPendientes: pend,
-      lowStockList: lowStock
-    });
+    fetchDashboardData();
   }, []);
 
   return (

@@ -20,12 +20,19 @@ export default function FinanzasPage() {
     }
     setIsAuthorized(true);
 
-    const saved = localStorage.getItem('templo_transacciones');
-    if (saved) {
+    const fetchFinanzas = async () => {
       try {
-        setTransacciones(JSON.parse(saved));
-      } catch (e) {}
-    }
+        const res = await fetch('/api/finanzas');
+        if (res.ok) {
+          const data = await res.json();
+          setTransacciones(data);
+        }
+      } catch (e) {
+        console.error("Error fetching finanzas:", e);
+      }
+    };
+    
+    fetchFinanzas();
   }, []);
 
   const getFiltered = () => {

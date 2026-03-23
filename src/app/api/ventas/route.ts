@@ -7,9 +7,12 @@ export async function POST(request: Request) {
   const clientRef = await pool.connect();
   try {
     const body = await request.json();
-    const { client_id, method, cart, total } = body;
+    const { client_id, method, cart, total, metadata } = body;
     
     await clientRef.query('BEGIN');
+    
+    // Ensure metadata exists
+    try { await clientRef.query('ALTER TABLE payments ADD COLUMN IF NOT EXISTS metadata JSONB'); } catch(e){}
     
     // 1. Insertar venta principal
     let clientId = client_id && client_id !== 'EXTERNO' ? parseInt(client_id, 10) : null;
@@ -36,8 +39,8 @@ export async function POST(request: Request) {
     // 3. Insertar registro de pago
     const paymentStatus = method === 'CREDIT' ? 'PENDING' : 'COMPLETED';
     await clientRef.query(
-      'INSERT INTO payments (reference_type, reference_id, amount, method, status) VALUES ($1, $2, $3, $4, $5)',
-      ['SALE', saleId, total, method, paymentStatus]
+      'INSERT INTO payments (reference_type, reference_id, amount, method, status, metadata) VALUES ($1, $2, $3, $4, $5, $6)',
+      ['SALE', saleId, total, method, paymentStatus, metadata]
     );
     
     await clientRef.query('COMMIT');

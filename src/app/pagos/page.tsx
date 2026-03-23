@@ -136,15 +136,22 @@ export default function PagosPage() {
         hora: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
         cliente: selectedClient ? selectedClient.name : "Invitado",
         clienteActivo: true,
+        reference_type: 'MEMBRESIA',
         elementos: [{ name: `Membresía: ${selectedPlan?.name}`, quantity: 1, price: selectedPlan?.price }],
         total: selectedPlan?.price || 0,
         metodo: paymentMethod === 'CARD_TERMINAL' ? 'CARD' : paymentMethod,
         cajero: "Administrador (En línea)"
       };
 
-      const guardadas = localStorage.getItem('templo_transacciones');
-      const historial = guardadas ? JSON.parse(guardadas) : [];
-      localStorage.setItem('templo_transacciones', JSON.stringify([transaccion, ...historial]));
+      try {
+        await fetch('/api/finanzas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(transaccion)
+        });
+      } catch (err) {
+        console.error("No se pudo guardar la transacción contable:", err);
+      }
 
       // 2. Show Ticket
       setIsProcessing(false);

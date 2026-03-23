@@ -149,25 +149,8 @@ export default function VentasPage() {
     
     // Guardar Venta en Backend (PostgreSQL)
     try {
-      const payload = {
-        client_id: selectedClient?.id || "EXTERNO",
-        method: paymentMethod,
-        cart: cart,
-        total: total
-      };
-
-      const vpRes = await fetch('/api/ventas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      
-      const vpData = await vpRes.json();
-      if (!vpRes.ok) throw new Error(vpData.error || 'Fallo POST a ventas');
-
-      // Actualizar Transacciones Locales (Para compatibilidad con Finanzas temporal)
       const transaccion = {
-        id: "TKT-" + (vpData.saleId || Date.now().toString().slice(-6)),
+        id: "TKT-" + Date.now().toString().slice(-6),
         fecha: new Date().toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' }),
         hora: new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
         cliente: selectedClient ? selectedClient.name : "Público General",
@@ -179,9 +162,25 @@ export default function VentasPage() {
         cajero: "Administrador (En línea)"
       };
 
-      const guardadas = localStorage.getItem('templo_transacciones');
-      const historial = guardadas ? JSON.parse(guardadas) : [];
-      localStorage.setItem('templo_transacciones', JSON.stringify([transaccion, ...historial]));
+      const payload = {
+        client_id: selectedClient?.id || "EXTERNO",
+        method: paymentMethod,
+        cart: cart,
+        total: total,
+        metadata: transaccion
+      };
+
+      const vpRes = await fetch('/api/ventas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      const vpData = await vpRes.json();
+      if (!vpRes.ok) throw new Error(vpData.error || 'Fallo POST a ventas');
+
+      // Update ticket with real ID if backend provided one, though tracking TKT is fine
+      transaccion.id = "TKT-" + (vpData.saleId || transaccion.id.replace('TKT-',''));
 
       await fetchProducts(); // Refresh products to update stock in UI
       setCompletedTicket(transaccion);
