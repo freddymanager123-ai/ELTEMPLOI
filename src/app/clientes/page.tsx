@@ -15,13 +15,15 @@ export default function ClientesPage() {
 
   const fetchClients = async () => {
     try {
-      const res = await fetch('/api/clientes');
-      if (res.ok) {
-        const data = await res.json();
-        
-        // Mantener compatibilidad con transacciones (locales por ahora)
-        const savedTrans = localStorage.getItem('templo_transacciones');
-        const trans = savedTrans ? JSON.parse(savedTrans) : [];
+      // Parallel fetch for clients and global transactions
+      const [clientRes, finanzasRes] = await Promise.all([
+        fetch('/api/clientes'),
+        fetch('/api/finanzas').catch(() => ({ ok: false, json: () => [] }))
+      ]);
+
+      if (clientRes.ok) {
+        const data = await clientRes.json();
+        const trans = finanzasRes.ok ? await (finanzasRes as Response).json() : [];
 
         const formatted = data.map((c: any) => {
            const fullName = `${c.first_name} ${c.last_name}`;
@@ -39,7 +41,7 @@ export default function ClientesPage() {
               photo: c.photo_url || "",
               status: c.status === 'DELETED' ? 'INACTIVO' : c.status || 'ACTIVO',
               stateClass: c.status === 'DELETED' ? 'bg-danger/10 text-danger border-danger/20' : 'bg-gold/10 text-gold border-gold/20',
-              end: "N/A", // Se conectará a enrollments después
+              end: "N/A", 
               alert: false,
               hasPending
            };
@@ -122,45 +124,32 @@ export default function ClientesPage() {
     reader.readAsDataURL(file);
   };
 
-  const handleViewProfile = (client: any) => {
+  const handleViewProfile = async (client: any) => {
     setViewClient(client);
     
-    // Buscar el historial unificado del cliente en Finanzas (localStorage - migración posterior)
-    const savedTrans = localStorage.getItem('templo_transacciones');
-    if (savedTrans) {
-      const trans = JSON.parse(savedTrans);
-      const clientTrans = trans.filter((t: any) => 
-         t.cliente && typeof t.cliente === 'string' && t.cliente.trim().toLowerCase() === client.name.trim().toLowerCase()
-      );
-      
-      const matriculas = clientTrans.filter((t: any) => t.elementos && t.elementos.some((e: any) => !e.category));
-      const ventas = clientTrans.filter((t: any) => t.elementos && t.elementos.some((e: any) => e.category) && t.metodo !== 'CREDIT');
-      const creditos = clientTrans.filter((t: any) => t.metodo === 'CREDIT');
-      
-      setClientHistory({ matriculas, ventas, creditos });
-    } else {
+    // Fetch real-time Finanzas
+    try {
+      const res = await fetch('/api/finanzas');
+      if (res.ok) {
+        const trans = await res.json();
+        const clientTrans = trans.filter((t: any) => 
+           t.cliente && typeof t.cliente === 'string' && t.cliente.trim().toLowerCase() === client.name.trim().toLowerCase()
+        );
+        
+        const matriculas = clientTrans.filter((t: any) => t.elementos && t.elementos.some((e: any) => !e.category));
+        const ventas = clientTrans.filter((t: any) => t.elementos && t.elementos.some((e: any) => e.category) && t.metodo !== 'CREDIT');
+        const creditos = clientTrans.filter((t: any) => t.metodo === 'CREDIT');
+        
+        setClientHistory({ matriculas, ventas, creditos });
+      }
+    } catch (e) {
       setClientHistory({ matriculas: [], ventas: [], creditos: [] });
     }
   };
 
-  const handleLiquidarCredito = (ticketId: string) => {
-    if (confirm("¿Confirmas que el cliente ha pagado esta deuda en EFECTIVO? (Esto saldará la cuenta).")) {
-       const savedTrans = localStorage.getItem('templo_transacciones');
-       if (savedTrans) {
-         let trans = JSON.parse(savedTrans);
-         trans = trans.map((t: any) => {
-           if (t.id === ticketId) {
-             return { ...t, estadoCredito: 'PAGADO', metodo: 'CASH', fechaLiquidacion: new Date().toLocaleDateString('es-MX') };
-           }
-           return t;
-         });
-         localStorage.setItem('templo_transacciones', JSON.stringify(trans));
-         
-         const clientTrans = trans.filter((t: any) => t.cliente && typeof t.cliente === 'string' && t.cliente.trim().toLowerCase() === viewClient.name.trim().toLowerCase());
-         const stillHasPending = clientTrans.some((t: any) => t.estadoCredito === 'PENDIENTE');
-         setClients(prev => prev.map(c => c.id === viewClient.id ? { ...c, hasPending: stillHasPending } : c));
-         handleViewProfile(viewClient);
-       }
+  const handleLiquidarCredito = async (ticketId: string) => {
+    if (confirm("¿Confirmas que el cliente ha pagado esta deuda en EFECTIVO? (Esto debería actualizar la BD. Acción manual simulada, requiere extensión API).")) {
+       alert('Esta funcionalidad será soportada en la nueva versión de API.');
     }
   };
 

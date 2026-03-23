@@ -44,14 +44,24 @@ export default function PagosPage() {
     fetchClients();
 
     // Load dynamic planes
-    const savedPlanes = localStorage.getItem('templo_planes_data');
-    if (savedPlanes) {
+    const fetchPlanes = async () => {
       try {
-        setPlanes(JSON.parse(savedPlanes));
-      } catch (error) {}
-    } else {
-      localStorage.setItem('templo_planes_data', JSON.stringify(PLANES));
-    }
+        const res = await fetch('/api/planes');
+        if (res.ok) {
+          const data = await res.json();
+          setPlanes(data.map((p: any) => ({
+            ...p,
+            id: p.id.toString(),
+            price: Number(p.price),
+            days: Number(p.duration_days || p.days || 30)
+          })));
+        }
+      } catch (error) {
+        console.error('Error fetching planes:', error);
+      }
+    };
+    
+    fetchPlanes();
   }, []);
 
   const filteredClients = searchTerm.length >= 2 

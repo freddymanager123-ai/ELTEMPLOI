@@ -52,8 +52,8 @@ export default function Sidebar() {
       />
 
       {/* Sidebar Component */}
-      <aside className={`fixed top-0 left-0 z-50 h-screen w-64 bg-oxford border-r border-slate-700 transition-transform duration-300 ease-in-out shadow-2xl ${isOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 print:hidden`}>
-        <div className="flex flex-col h-full px-4 py-6 md:py-8">
+      <aside className={`fixed top-0 left-0 z-50 h-screen w-64 bg-oxford border-r border-slate-700 transition-transform duration-300 ease-in-out shadow-2xl overflow-y-auto custom-scrollbar ${isOpen ? "translate-x-0" : "-translate-x-full"} md:translate-x-0 print:hidden`}>
+        <div className="flex flex-col min-h-screen px-4 py-6 md:py-8">
           <div className="hidden md:flex items-center justify-center mb-10">
             <Image src="/logo.jpg" alt="El Templo Gym" width={180} height={180} className="w-40 h-auto object-contain mx-auto drop-shadow-[0_0_15px_rgba(212,175,55,0.2)]" priority />
           </div>
