@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { Search, Plus, Edit, Trash2, X, Package, AlertTriangle, LayoutGrid, List, Upload } from "lucide-react";
 
-export const INITIAL_PRODUCTS = [
+const INITIAL_PRODUCTS = [
   { id: "1", name: "Proteína Whey Fx", price: 1200, category: "Suplementos", image: "🥤", stock: 12 },
   { id: "2", name: "Pre-entreno C4", price: 850, category: "Suplementos", image: "⚡", stock: 5 },
   { id: "3", name: "Creatina Monohidratada", price: 600, category: "Suplementos", image: "💊", stock: 0 },
