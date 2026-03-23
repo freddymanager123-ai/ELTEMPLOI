@@ -1,23 +1,30 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Search, Plus, Edit, Trash2, X, Bookmark } from "lucide-react";
-import { INITIAL_PLANES } from './data';
 
 export default function MembresiasPage() {
-  const [planes, setPlanes] = useState(INITIAL_PLANES);
+  const [planes, setPlanes] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [formData, setFormData] = useState({ id: null as string | null, name: '', price: '', days: '' });
 
+  const fetchPlanes = async () => {
+    try {
+      const res = await fetch('/api/planes');
+      if (res.ok) {
+        const data = await res.json();
+        setPlanes(data.map((p: any) => ({
+          ...p,
+          id: p.id.toString(),
+          price: Number(p.price),
+          days: Number(p.duration_days || p.days || 30) // fallback if schema mismatch
+        })));
+      }
+    } catch(e) { console.error(e); }
+  };
+
   useEffect(() => {
-    const saved = localStorage.getItem('templo_planes_data');
-    if (saved) {
-      try {
-        setPlanes(JSON.parse(saved));
-      } catch (e) {}
-    } else {
-      localStorage.setItem('templo_planes_data', JSON.stringify(INITIAL_PLANES));
-    }
+    fetchPlanes();
   }, []);
 
   const handleEdit = (plan: any) => {
@@ -25,37 +32,63 @@ export default function MembresiasPage() {
       id: plan.id,
       name: plan.name,
       price: plan.price.toString(),
-      days: plan.days.toString()
+      days: (plan.duration_days || plan.days).toString()
     });
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("¿Estás seguro de eliminar permanentemente este plan de membresía?")) {
-      const updated = planes.filter((p: any) => p.id !== id);
-      setPlanes(updated);
-      localStorage.setItem('templo_planes_data', JSON.stringify(updated));
+      try {
+        const res = await fetch(`/api/planes/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          setPlanes(planes.filter((p: any) => p.id !== id));
+        } else {
+          const err = await res.json();
+          alert(err.error || 'Error al eliminar');
+        }
+      } catch(e) {}
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    let updated;
     const cleanPrice = parseFloat(formData.price) || 0;
     const cleanDays = parseInt(formData.days) || 0;
 
-    if (formData.id) {
-      updated = planes.map((p: any) => 
-        p.id === formData.id ? { ...p, name: formData.name, price: cleanPrice, days: cleanDays } : p
-      );
-    } else {
-      updated = [{ id: Date.now().toString(), name: formData.name, price: cleanPrice, days: cleanDays }, ...planes];
-    }
+    const payload = {
+      name: formData.name,
+      price: cleanPrice,
+      duration_type: 'DAYS',
+      duration_days: cleanDays
+    };
 
-    setPlanes(updated);
-    localStorage.setItem('templo_planes_data', JSON.stringify(updated));
-    setIsModalOpen(false);
-    setFormData({ id: null, name: '', price: '', days: '' });
+    try {
+      let res;
+      if (formData.id) {
+        res = await fetch(`/api/planes/${formData.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        res = await fetch(`/api/planes`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      }
+
+      if (res.ok) {
+        await fetchPlanes();
+        setIsModalOpen(false);
+        setFormData({ id: null, name: '', price: '', days: '' });
+      } else {
+        alert('Error al guardar el plan');
+      }
+    } catch(e) {
+      alert('Error de conexión');
+    }
   };
 
   const filtered = planes.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -94,25 +127,29 @@ export default function MembresiasPage() {
 
       <div className="bg-oxford border border-slate-700/60 rounded-2xl shadow-lg flex-1 overflow-hidden flex flex-col">
         <div className="overflow-y-auto flex-1 p-6 custom-scrollbar">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filtered.map((plan, i) => (
-              <div key={i} className="bg-slate-900 border border-slate-700 p-6 rounded-2xl flex flex-col justify-between hover:border-gold/50 hover:shadow-[0_0_15px_rgba(212,175,55,0.1)] transition-all group">
-                <div>
-                  <div className="flex justify-between items-start mb-4">
-                    <h3 className="text-xl font-bold text-white leading-tight pr-4">{plan.name}</h3>
-                    <div className="flex gap-2">
-                      <button onClick={() => handleEdit(plan)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-gold transition"><Edit size={16} /></button>
-                      <button onClick={() => handleDelete(plan.id)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-danger transition"><Trash2 size={16} /></button>
+          {planes.length === 0 ? (
+            <div className="text-center py-10 text-slate-500">Cargando planes o catálogo vacío...</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {filtered.map((plan, i) => (
+                <div key={i} className="bg-slate-900 border border-slate-700 p-6 rounded-2xl flex flex-col justify-between hover:border-gold/50 hover:shadow-[0_0_15px_rgba(212,175,55,0.1)] transition-all group">
+                  <div>
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="text-xl font-bold text-white leading-tight pr-4">{plan.name}</h3>
+                      <div className="flex gap-2">
+                        <button onClick={() => handleEdit(plan)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-gold transition"><Edit size={16} /></button>
+                        <button onClick={() => handleDelete(plan.id)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-400 hover:text-danger transition"><Trash2 size={16} /></button>
+                      </div>
                     </div>
+                    <p className="text-4xl font-black text-gold">${plan.price.toFixed(2)} <span className="text-sm font-normal text-slate-500">MXN</span></p>
                   </div>
-                  <p className="text-4xl font-black text-gold">${plan.price.toFixed(2)} <span className="text-sm font-normal text-slate-500">MXN</span></p>
+                  <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-center gap-2 text-slate-300 font-medium text-sm bg-slate-800/50 rounded-xl p-3">
+                    <Bookmark size={18} className="text-gold" /> Acceso por {plan.days} {plan.days === 1 ? 'Día' : 'Días'}
+                  </div>
                 </div>
-                <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-center gap-2 text-slate-300 font-medium text-sm bg-slate-800/50 rounded-xl p-3">
-                  <Bookmark size={18} className="text-gold" /> Acceso por {plan.days} {plan.days === 1 ? 'Día' : 'Días'}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

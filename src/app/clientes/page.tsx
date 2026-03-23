@@ -2,18 +2,10 @@
 import { useState, useEffect } from "react";
 import { Search, Plus, MoreVertical, Filter, Download, UserPlus, X, Edit, Trash2, Eye, Calendar, ShoppingBag, Activity, BadgeDollarSign, BookOpen, Upload } from "lucide-react";
 
-const initialClients = [
-  { id: "1", name: "Carlos Jiménez", curp: "JIMC900115...", phone: "55 1234 5678", email: "carlos@mail.com", status: "ACTIVO", stateClass: "bg-gold/10 text-gold border-gold/20", end: "15 Oct 2026", alert: false },
-  { id: "2", name: "Roberto Sánchez", curp: "SANR880422...", phone: "55 8765 4321", email: "robertosh@mail.com", status: "VENCIDO", stateClass: "bg-danger/10 text-danger border-danger/20", end: "20 Mar 2026", alert: true },
-  { id: "3", name: "María Fernanda", curp: "FERM950810...", phone: "55 1122 3344", email: "mafer@mail.com", status: "ACTIVO", stateClass: "bg-gold/10 text-gold border-gold/20", end: "05 Nov 2026", alert: false },
-  { id: "4", name: "Luis Hernández", curp: "HERL920101...", phone: "55 9988 7766", email: "luis.h@mail.com", status: "INACTIVO (SIN PLAN)", stateClass: "bg-slate-800 text-slate-400 border-slate-600", end: "N/A", alert: false },
-  { id: "5", name: "Jorge Téllez", curp: "TELJ981014...", phone: "55 3344 5566", email: "jorget@mail.com", status: "ACTIVO", stateClass: "bg-gold/10 text-gold border-gold/20", end: "12 Dic 2026", alert: false },
-];
-
 export default function ClientesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({ id: null as string | null, first_name: '', last_name: '', curp: '', email: '', phone: '', photo: '' });
-  const [clients, setClients] = useState<any[]>(initialClients);
+  const [clients, setClients] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("TODOS");
 
@@ -21,33 +13,53 @@ export default function ClientesPage() {
   const [viewClient, setViewClient] = useState<any | null>(null);
   const [clientHistory, setClientHistory] = useState<{matriculas: any[], ventas: any[], creditos: any[]}>({ matriculas: [], ventas: [], creditos: [] });
 
-  useEffect(() => {
-    const savedClients = localStorage.getItem('templo_clients_data');
-    if (savedClients) {
-      try {
-        const parsed = JSON.parse(savedClients);
+  const fetchClients = async () => {
+    try {
+      const res = await fetch('/api/clientes');
+      if (res.ok) {
+        const data = await res.json();
+        
+        // Mantener compatibilidad con transacciones (locales por ahora)
         const savedTrans = localStorage.getItem('templo_transacciones');
         const trans = savedTrans ? JSON.parse(savedTrans) : [];
 
-        const clean = parsed.map((c: any) => {
-           const clientTrans = trans.filter((t: any) => t.cliente && typeof t.cliente === 'string' && t.cliente.trim().toLowerCase() === c.name.trim().toLowerCase());
+        const formatted = data.map((c: any) => {
+           const fullName = `${c.first_name} ${c.last_name}`;
+           const clientTrans = trans.filter((t: any) => t.cliente && typeof t.cliente === 'string' && t.cliente.trim().toLowerCase() === fullName.trim().toLowerCase());
            const hasPending = clientTrans.some((t: any) => t.estadoCredito === 'PENDIENTE');
            
-           return { ...c, id: c.id || Date.now().toString() + Math.random().toString(), hasPending };
+           return {
+              ...c,
+              id: c.id.toString(), 
+              name: fullName,
+              curp: c.curp || "PENDIENTE",
+              phone: c.phone || "N/A",
+              email: c.email || "N/A",
+              photo: c.photo_url || "",
+              status: c.status === 'DELETED' ? 'INACTIVO' : c.status || 'ACTIVO',
+              stateClass: c.status === 'DELETED' ? 'bg-danger/10 text-danger border-danger/20' : 'bg-gold/10 text-gold border-gold/20',
+              end: "N/A", // Se conectará a enrollments después
+              alert: false,
+              hasPending
+           };
         });
-        setClients(clean);
-      } catch (error) {
-        console.error("Error loading clients", error);
+        setClients(formatted);
       }
+    } catch (err) {
+      console.error(err);
     }
+  };
+
+  useEffect(() => {
+    fetchClients();
   }, []);
 
   const handleEdit = (client: any) => {
     const parts = client.name.split(' ');
     setFormData({
       id: client.id || null,
-      first_name: parts[0] || '',
-      last_name: parts.slice(1).join(' ') || '',
+      first_name: client.first_name || parts[0] || '',
+      last_name: client.last_name || parts.slice(1).join(' ') || '',
       curp: client.curp === "PENDIENTE" ? "" : client.curp,
       email: client.email === "N/A" ? "" : client.email,
       phone: client.phone === "N/A" ? "" : client.phone,
@@ -56,11 +68,17 @@ export default function ClientesPage() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("¿Estás seguro de que deseas eliminar permanentemente este expediente?")) {
-      const updated = clients.filter((c: any) => c.id !== id);
-      setClients(updated);
-      localStorage.setItem('templo_clients_data', JSON.stringify(updated));
+      try {
+        const res = await fetch(`/api/clientes/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          setClients(clients.filter((c: any) => c.id !== id));
+          fetchClients(); 
+        } else {
+          alert('Hubo un error al eliminar el cliente.');
+        }
+      } catch(e) { console.error(e); }
     }
   };
 
@@ -94,7 +112,6 @@ export default function ClientesPage() {
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
         
-        // Export base64 con calidad 60% para base de datos local
         const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
         setFormData({ ...formData, photo: dataUrl });
       };
@@ -106,20 +123,16 @@ export default function ClientesPage() {
   const handleViewProfile = (client: any) => {
     setViewClient(client);
     
-    // Buscar el historial unificado del cliente en Finanzas (localStorage)
+    // Buscar el historial unificado del cliente en Finanzas (localStorage - migración posterior)
     const savedTrans = localStorage.getItem('templo_transacciones');
     if (savedTrans) {
       const trans = JSON.parse(savedTrans);
-      // Filtramos por coincidencia de nombre (como está guardado en el LocalStorage)
       const clientTrans = trans.filter((t: any) => 
          t.cliente && typeof t.cliente === 'string' && t.cliente.trim().toLowerCase() === client.name.trim().toLowerCase()
       );
       
-      // Matrículas: Aquellas que NO tienen categoría (porque vienen del módulo pagos)
       const matriculas = clientTrans.filter((t: any) => t.elementos && t.elementos.some((e: any) => !e.category));
-      // Ventas: Aquellas que SÍ tienen categoría (porque vienen de productos) y NO son de crédito
       const ventas = clientTrans.filter((t: any) => t.elementos && t.elementos.some((e: any) => e.category) && t.metodo !== 'CREDIT');
-      // Créditos (Adeudos): Ventas que se marcaron a crédito
       const creditos = clientTrans.filter((t: any) => t.metodo === 'CREDIT');
       
       setClientHistory({ matriculas, ventas, creditos });
@@ -141,12 +154,9 @@ export default function ClientesPage() {
          });
          localStorage.setItem('templo_transacciones', JSON.stringify(trans));
          
-         // Verificar si aún quedan deudas para actualizar el estado de la tabla general
          const clientTrans = trans.filter((t: any) => t.cliente && typeof t.cliente === 'string' && t.cliente.trim().toLowerCase() === viewClient.name.trim().toLowerCase());
          const stillHasPending = clientTrans.some((t: any) => t.estadoCredito === 'PENDIENTE');
          setClients(prev => prev.map(c => c.id === viewClient.id ? { ...c, hasPending: stillHasPending } : c));
-         
-         // Refrescar la vista actual del cliente
          handleViewProfile(viewClient);
        }
     }
@@ -155,7 +165,6 @@ export default function ClientesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validaciones solicitadas
     const rawPhone = formData.phone ? formData.phone.replace(/\D/g, '') : '';
     if (formData.phone && rawPhone.length !== 10) {
       alert("⚠️ El teléfono celular debe contener exactamente 10 números.");
@@ -167,42 +176,43 @@ export default function ClientesPage() {
       return;
     }
 
-    let updatedClients;
-
-    if (formData.id) {
-      // Edit
-      updatedClients = clients.map((c: any) => 
-        c.id === formData.id ? { 
-          ...c, 
-          name: `${formData.first_name} ${formData.last_name}`,
-          curp: formData.curp || "PENDIENTE",
-          phone: formData.phone || "N/A",
-          email: formData.email || "N/A",
-          photo: formData.photo
-        } : c
-      );
-    } else {
-      // Map New Client
-      const newClient = {
-        id: Date.now().toString(),
-        name: `${formData.first_name} ${formData.last_name}`,
-        curp: formData.curp || "PENDIENTE",
-        phone: formData.phone || "N/A",
-        email: formData.email || "N/A",
-        photo: formData.photo,
-        status: "ACTIVO",
-        stateClass: "bg-gold/10 text-gold border-gold/20",
-        end: "30 Días (Nuevo)",
-        alert: false
+    try {
+      const payload = {
+         first_name: formData.first_name,
+         last_name: formData.last_name,
+         curp: formData.curp,
+         phone: formData.phone,
+         email: formData.email,
+         photo_url: formData.photo 
       };
-      updatedClients = [newClient, ...clients];
+
+      let res;
+      if (formData.id) {
+        res = await fetch(`/api/clientes/${formData.id}`, {
+           method: 'PUT',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify(payload)
+        });
+      } else {
+        res = await fetch(`/api/clientes`, {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify(payload)
+        });
+      }
+
+      if (res.ok) {
+         await fetchClients();
+         setIsModalOpen(false);
+         setFormData({ id: null, first_name: '', last_name: '', curp: '', email: '', phone: '', photo: '' });
+      } else {
+         const errorData = await res.json();
+         alert(`Error: ${errorData.error || 'Ocurrió un problema al guardar el cliente.'}`);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error de conexión con el servidor.');
     }
-    
-    setClients(updatedClients);
-    localStorage.setItem('templo_clients_data', JSON.stringify(updatedClients));
-    
-    setIsModalOpen(false);
-    setFormData({ id: null, first_name: '', last_name: '', curp: '', email: '', phone: '', photo: '' });
   };
 
   const filteredClients = clients.filter(c => {
@@ -348,7 +358,7 @@ export default function ClientesPage() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-2">
-                      <button onClick={() => handleViewProfile(client)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-600 text-slate-300 hover:text-white transition shadow-sm" title="Ver Expediente Completo">
+                       <button onClick={() => handleViewProfile(client)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-600 text-slate-300 hover:text-white transition shadow-sm" title="Ver Expediente Completo">
                         <Eye size={16} />
                       </button>
                       <button onClick={() => handleEdit(client)} className="p-2 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-600 text-slate-300 hover:text-gold transition shadow-sm" title="Editar">
@@ -376,7 +386,7 @@ export default function ClientesPage() {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+       <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="bg-oxford border border-slate-700/60 rounded-2xl w-full max-w-lg shadow-2xl relative flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center p-6 border-b border-slate-700/60">
               <h2 className="text-xl font-bold text-white">{formData.id ? "Editar Cliente" : "Registrar Nuevo Cliente"}</h2>
@@ -444,12 +454,13 @@ export default function ClientesPage() {
                 <UserPlus size={18} /> {formData.id ? "Actualizar Cliente" : "Guardar Cliente"}
               </button>
             </div>
+
           </div>
         </div>
       )}
 
       {/* Visor de Expediente del Cliente (Modo Pantalla Completa) */}
-      {viewClient && (
+       {viewClient && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 lg:p-8 animate-in fade-in duration-200">
           <div className="bg-oxford border border-slate-700/60 rounded-2xl w-full max-w-6xl h-full shadow-2xl relative flex flex-col animate-in zoom-in-95 duration-200 overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center p-6 border-b border-slate-700/60 bg-slate-800/50 shrink-0">

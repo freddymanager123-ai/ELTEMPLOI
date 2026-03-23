@@ -2,50 +2,39 @@
 import { useState, useEffect } from "react";
 import { Search, Plus, Edit, Trash2, X, Package, AlertTriangle, LayoutGrid, List, Upload } from "lucide-react";
 
-const INITIAL_PRODUCTS = [
-  { id: "1", name: "Proteína Whey Fx", price: 1200, category: "Suplementos", image: "🥤", stock: 12 },
-  { id: "2", name: "Pre-entreno C4", price: 850, category: "Suplementos", image: "⚡", stock: 5 },
-  { id: "3", name: "Creatina Monohidratada", price: 600, category: "Suplementos", image: "💊", stock: 0 },
-  { id: "4", name: "Agua Natural 1L", price: 20, category: "Bebidas", image: "💧", stock: 48 },
-  { id: "5", name: "Gatorade Morado", price: 35, category: "Bebidas", image: "🧃", stock: 24 },
-  { id: "6", name: "Bebida Energética Monster", price: 50, category: "Bebidas", image: "🔋", stock: 15 },
-  { id: "7", name: "Playera Dry-Fit Templo", price: 350, category: "Ropa", image: "👕", stock: 8 },
-  { id: "8", name: "Shaker Metálico", price: 250, category: "Accesorios", image: "🫙", stock: 3 },
-  { id: "9", name: "Toalla Microfibra", price: 120, category: "Accesorios", image: "🧣", stock: 10 },
-  { id: "10", name: "Straps para Levantamiento", price: 200, category: "Accesorios", image: "🏋️", stock: 6 },
-  { id: "11", name: "Barra Energética Avena", price: 40, category: "Snacks", image: "🍫", stock: 30 },
-];
-
 const CATEGORIAS_OPCIONES = ["Bebidas", "Suplementos", "Ropa", "Accesorios", "Snacks"];
 const CATEGORIAS_FILTRO = ["Todas", ...CATEGORIAS_OPCIONES];
-
 const EMOJI_OPTIONS = ["🥤", "⚡", "💊", "💧", "🧃", "🔋", "👕", "🫙", "🧣", "🏋️", "🍫", "🍎", "🥛", "👕", "👖", "🧢", "🎒", "🥊", "🧘", "💪"];
 
 export default function ProductosPage() {
-  const [products, setProducts] = useState(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Todas");
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [formData, setFormData] = useState({ id: null as string | null, name: '', price: '', stock: '', category: 'Suplementos', image: '🥤' });
 
-  useEffect(() => {
-    const saved = localStorage.getItem('templo_productos_data');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Parchar productos viejos que no tenían la propiedad stock
-        const patched = parsed.map((p: any) => ({
-          ...p,
-          stock: typeof p.stock === 'number' ? p.stock : 0
-        }));
-        setProducts(patched);
-        // Guardar el parche
-        localStorage.setItem('templo_productos_data', JSON.stringify(patched));
-      } catch (e) {}
-    } else {
-      localStorage.setItem('templo_productos_data', JSON.stringify(INITIAL_PRODUCTS));
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch('/api/productos');
+      if (res.ok) {
+        const data = await res.json();
+        // Add id as string and default image for UI
+        setProducts(data.map((p: any) => ({
+          ...p, 
+          id: p.id.toString(), 
+          price: Number(p.price),
+          stock: Number(p.stock),
+          image: p.image || '📦'
+        })));
+      }
+    } catch(e) {
+      console.error(e);
     }
+  };
+
+  useEffect(() => {
+    fetchProducts();
   }, []);
 
   const handleEdit = (product: any) => {
@@ -60,11 +49,19 @@ export default function ProductosPage() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("¿Estás seguro de eliminar este producto del inventario?")) {
-      const updated = products.filter((p: any) => p.id !== id);
-      setProducts(updated);
-      localStorage.setItem('templo_productos_data', JSON.stringify(updated));
+      try {
+        const res = await fetch(`/api/productos/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+          setProducts(products.filter((p: any) => p.id !== id));
+        } else {
+          const err = await res.json();
+          alert(err.error || 'Error al eliminar');
+        }
+      } catch(e) {
+        console.error(e);
+      }
     }
   };
 
@@ -77,7 +74,7 @@ export default function ProductosPage() {
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_SIZE = 300; // Reducir a 300px max para optimizar localStorage
+        const MAX_SIZE = 300; 
         let width = img.width;
         let height = img.height;
 
@@ -98,7 +95,6 @@ export default function ProductosPage() {
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
         
-        // Export base64 con calidad 60% para economizar string size en LocalStorage
         const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
         setFormData({ ...formData, image: dataUrl });
       };
@@ -107,24 +103,46 @@ export default function ProductosPage() {
     reader.readAsDataURL(file);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    let updated;
     const cleanPrice = parseFloat(formData.price) || 0;
     const cleanStock = parseInt(formData.stock) || 0;
 
-    if (formData.id) {
-      updated = products.map((p: any) => 
-        p.id === formData.id ? { ...p, name: formData.name, price: cleanPrice, stock: cleanStock, category: formData.category, image: formData.image } : p
-      );
-    } else {
-      updated = [{ id: Date.now().toString(), name: formData.name, price: cleanPrice, stock: cleanStock, category: formData.category, image: formData.image }, ...products];
-    }
+    const payload = {
+      name: formData.name,
+      price: cleanPrice,
+      stock: cleanStock,
+      category: formData.category,
+      image: formData.image
+    };
 
-    setProducts(updated);
-    localStorage.setItem('templo_productos_data', JSON.stringify(updated));
-    setIsModalOpen(false);
-    setFormData({ id: null, name: '', price: '', stock: '', category: 'Suplementos', image: '🥤' });
+    try {
+      let res;
+      if (formData.id) {
+        res = await fetch(`/api/productos/${formData.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        res = await fetch(`/api/productos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      }
+
+      if (res.ok) {
+        await fetchProducts();
+        setIsModalOpen(false);
+        setFormData({ id: null, name: '', price: '', stock: '', category: 'Suplementos', image: '🥤' });
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Error al guardar el producto');
+      }
+    } catch(err) {
+      alert('Error de conexión');
+    }
   };
 
   const filtered = products.filter(p => {

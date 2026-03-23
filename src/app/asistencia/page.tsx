@@ -9,39 +9,63 @@ export default function AsistenciaPage() {
   const [lastScanned, setLastScanned] = useState<any | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Cargar datos
+  const fetchClients = async () => {
+    try {
+      const res = await fetch('/api/clientes');
+      if (res.ok) {
+        const data = await res.json();
+        setClients(data.map((c: any) => ({
+          ...c,
+          id: c.id.toString(),
+          name: `${c.first_name} ${c.last_name}`.trim(),
+        })));
+      }
+    } catch(e) { console.error(e); }
+  };
+
+  const fetchLogs = async () => {
+    try {
+      const res = await fetch('/api/asistencia');
+      if (res.ok) {
+        const data = await res.json();
+        const formatted = data.map((log: any) => {
+          const mdate = new Date(log.check_in);
+          return {
+            id: log.id.toString(),
+            clientId: log.client_id?.toString() || '',
+            name: `${log.first_name} ${log.last_name}`.trim(),
+            time: mdate.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
+            date: mdate.toLocaleDateString('es-MX'),
+            isOk: log.client_status === 'ACTIVO',
+            statusLabel: log.client_status
+          };
+        });
+        // Filtrar opcionalmente solo los de hoy usando el client o la query SQl, 
+        // pero la query ya trae los últimos 100, para esta versión está bien.
+        const today = new Date().toLocaleDateString('es-MX');
+        setDailyLog(formatted.filter((l: any) => l.date === today));
+      }
+    } catch(e) { console.error(e); }
+  };
+
   useEffect(() => {
-    const savedClients = localStorage.getItem('templo_clients_data');
-    if (savedClients) setClients(JSON.parse(savedClients));
-
-    const savedLogs = localStorage.getItem('templo_asistencias');
-    if (savedLogs) {
-      const logs = JSON.parse(savedLogs);
-      // Filtrar solo los de hoy
-      const today = new Date().toLocaleDateString('es-MX');
-      const todaysLogs = logs.filter((l: any) => l.date === today);
-      setDailyLog(todaysLogs.reverse()); // Más recientes primero
-    }
-
-    // Auto-focus al input para escáneres de código de barras
+    fetchClients();
+    fetchLogs();
     if (inputRef.current) inputRef.current.focus();
   }, []);
 
-  const handleScan = (e: React.FormEvent) => {
+  const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchTerm.trim()) return;
 
     const term = searchTerm.toLowerCase().trim();
-    // Buscar coincidencia exacta por ID/CURP, o parcial por nombre si no encuentra
-    let match = clients.find(c => c.curp.toLowerCase() === term || c.id === term);
+    let match = clients.find(c => (c.curp && c.curp.toLowerCase() === term) || c.id === term);
     
-    // Fallback: buscar por nombre si el scanner arroja el nombre o se tecleó a mano
     if (!match) {
        match = clients.find(c => c.name.toLowerCase().includes(term));
     }
 
     if (match) {
-      // Registrar Asistencia
       const isOk = match.status === 'ACTIVO' && !match.alert;
       const now = new Date();
       
@@ -49,7 +73,7 @@ export default function AsistenciaPage() {
         id: Date.now().toString(),
         clientId: match.id,
         name: match.name,
-        photo: match.photo || null,
+        photo: match.photo_url || match.photo || null,
         time: now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }),
         date: now.toLocaleDateString('es-MX'),
         isOk: isOk,
@@ -57,21 +81,24 @@ export default function AsistenciaPage() {
       };
 
       setLastScanned({ ...match, entry: newEntry });
+      setDailyLog([newEntry, ...dailyLog]);
 
-      const updatedLogs = [newEntry, ...dailyLog];
-      setDailyLog(updatedLogs);
-      
-      // Guardar a localStorage anexando a todo el histórico
-      const allLogs = JSON.parse(localStorage.getItem('templo_asistencias') || '[]');
-      localStorage.setItem('templo_asistencias', JSON.stringify([...allLogs, newEntry]));
+      try {
+        await fetch('/api/asistencia', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ client_id: match.id })
+        });
+        // We could call fetchLogs() to sync, but optimistic append is faster for UI scanner.
+      } catch(err) {
+        console.error("Error saving attendance to DB");
+      }
 
     } else {
-      // No encontrado
       setLastScanned({ error: 'NO ENCONTRADO', term });
     }
 
     setSearchTerm("");
-    // Mantener focus para el siguiente
     if (inputRef.current) inputRef.current.focus();
   };
 
@@ -92,11 +119,8 @@ export default function AsistenciaPage() {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
-         
-         {/* Lector y Pantalla Resultante (Columna 1 y 2) */}
          <div className="lg:col-span-2 flex flex-col gap-6">
             
-            {/* Input del Scanner */}
             <form onSubmit={handleScan} className="bg-oxford p-6 rounded-2xl border border-slate-700/60 shadow-lg relative overflow-hidden shrink-0">
                <div className="absolute top-0 right-0 w-32 h-32 bg-gold/5 rounded-bl-full pointer-events-none"></div>
                <label className="text-sm font-bold text-gold uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -120,7 +144,6 @@ export default function AsistenciaPage() {
                <p className="text-xs text-slate-500 mt-3 flex items-center gap-2"><KeyRound size={12}/> El campo está siempre activo para lectores de códigos (Auto-focus habilitado).</p>
             </form>
 
-            {/* Pantalla de Validación */}
             <div className={`flex-1 rounded-2xl border flex flex-col items-center justify-center p-8 transition-all duration-300 shadow-xl ${
                !lastScanned ? 'bg-oxford border-slate-700/60 opacity-80' : 
                lastScanned.error ? 'bg-danger/10 border-danger/40 shadow-[0_0_30px_rgba(239,68,68,0.15)]' :
@@ -142,8 +165,8 @@ export default function AsistenciaPage() {
                ) : (
                   <div className="text-center w-full max-w-lg animate-in fade-in slide-in-from-bottom-4 duration-300">
                      <div className={`w-40 h-40 mx-auto rounded-full border-8 shadow-2xl overflow-hidden flex items-center justify-center text-5xl font-bold bg-slate-800 mb-6 relative ${lastScanned.entry.isOk ? 'border-[#22C55E]' : 'border-danger'}`}>
-                        {lastScanned.photo ? (
-                           <img src={lastScanned.photo} alt="profile" className="w-full h-full object-cover" />
+                        {lastScanned.photo_url || lastScanned.photo ? (
+                           <img src={lastScanned.photo_url || lastScanned.photo} alt="profile" className="w-full h-full object-cover" />
                         ) : (
                            <span className="text-slate-500">{lastScanned.name.split(' ').map((n: string) => n[0]).join('').substring(0,2)}</span>
                         )}
@@ -157,7 +180,6 @@ export default function AsistenciaPage() {
                      <h2 className="text-4xl md:text-5xl font-black text-white mb-2 leading-tight">{lastScanned.name}</h2>
                      <p className="text-slate-400 font-mono text-lg mb-8 uppercase tracking-widest">{lastScanned.curp}</p>
 
-                     {/* Gran Banner de Aprobación */}
                      <div className={`w-full rounded-2xl p-6 border-2 flex items-center justify-center gap-4 ${lastScanned.entry.isOk ? 'bg-[#22C55E] border-[#16a34a] text-black shadow-[0_0_20px_rgba(34,197,94,0.4)]' : 'bg-danger border-red-700 text-white shadow-[0_0_20px_rgba(239,68,68,0.4)]'}`}>
                         {lastScanned.entry.isOk ? <UserCheck size={40} /> : <AlertBannerIcon />}
                         <div className="text-left">
@@ -172,7 +194,6 @@ export default function AsistenciaPage() {
             </div>
          </div>
 
-         {/* Bitácora / Log del día (Columna 3) */}
          <div className="bg-oxford border border-slate-700/60 rounded-2xl shadow-lg flex flex-col overflow-hidden">
             <div className="p-5 border-b border-slate-700/60 bg-slate-800/80 shrink-0 flex items-center justify-between">
                <h3 className="text-lg font-bold text-white flex items-center gap-2"><Clock size={18} className="text-gold"/> Bitácora de Hoy</h3>
@@ -186,8 +207,8 @@ export default function AsistenciaPage() {
                  </div>
                ) : (
                  <div className="space-y-1">
-                    {dailyLog.map((log) => (
-                       <div key={log.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-800/50 transition border border-transparent hover:border-slate-700 group">
+                    {dailyLog.map((log: any, idx: number) => (
+                       <div key={idx} className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-800/50 transition border border-transparent hover:border-slate-700 group">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center overflow-hidden shrink-0 border ${log.isOk ? 'border-[#22C55E]' : 'border-danger'} bg-slate-900`}>
                              {log.photo ? (
                                 <img src={log.photo} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition" />

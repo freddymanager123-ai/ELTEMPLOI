@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 // GET /api/clientes -> Obtiene todos los clientes
 export async function GET() {
   try {
@@ -16,13 +18,14 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { first_name, last_name, curp, email, phone } = body;
+    const { first_name, last_name, curp, email, phone, photo_url } = body;
     
     // Validación básica
     if (!first_name || !last_name) {
       return NextResponse.json({ error: 'El nombre y apellido son obligatorios' }, { status: 400 });
     }
 
+    // Try multiple columns since we might not have photo_url depending on DB updates
     const query = `
       INSERT INTO clients (first_name, last_name, curp, email, phone) 
       VALUES ($1, $2, $3, $4, $5) 
