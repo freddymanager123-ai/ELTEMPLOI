@@ -24,6 +24,7 @@ CREATE TABLE clients (
     age INT,
     email VARCHAR(150),
     phone VARCHAR(20),
+    photo_url TEXT,
     status VARCHAR(20) DEFAULT 'INACTIVO (SIN PLAN)',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

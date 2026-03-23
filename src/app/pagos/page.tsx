@@ -24,12 +24,24 @@ export default function PagosPage() {
   const [planes, setPlanes] = useState<any[]>(PLANES);
 
   useEffect(() => {
-    const savedClients = localStorage.getItem('templo_clients_data');
-    if (savedClients) {
+    const fetchClients = async () => {
       try {
-        setClients(JSON.parse(savedClients));
-      } catch (error) {}
-    }
+        const response = await fetch('/api/clientes');
+        if (response.ok) {
+          const data = await response.json();
+          const formatted = data.map((c: any) => ({
+            ...c,
+            name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+            alert: c.status !== 'ACTIVE' && c.status !== 'ACTIVO (PLAN)'
+          }));
+          setClients(formatted);
+        }
+      } catch (error) {
+        console.error('Error fetching clients for pagos:', error);
+      }
+    };
+    
+    fetchClients();
 
     // Load dynamic planes
     const savedPlanes = localStorage.getItem('templo_planes_data');
@@ -96,35 +108,24 @@ export default function PagosPage() {
     }
 
     // Registro local del pago
-    setTimeout(() => {
+    setTimeout(async () => {
       if (selectedClient && selectedPlan) {
-        const savedClients = localStorage.getItem('templo_clients_data');
-        if (savedClients) {
-          try {
-            const parsed = JSON.parse(savedClients);
-            
-            // Format new end date dynamically based on plan.days
-            const today = new Date();
-            today.setDate(today.getDate() + selectedPlan.days);
-            const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-            const endDateString = `${today.getDate().toString().padStart(2, '0')} ${months[today.getMonth()]} ${today.getFullYear()}`;
-            
-            const updated = parsed.map((c: any) => {
-              if (c.id === selectedClient.id) {
-                return {
-                  ...c,
-                  status: "ACTIVO",
-                  alert: false,
-                  end: endDateString,
-                  stateClass: "bg-gold/10 text-gold border-gold/20"
-                };
-              }
-              return c;
-            });
-            
-            localStorage.setItem('templo_clients_data', JSON.stringify(updated));
-            setClients(updated);
-          } catch(e) {}
+        try {
+          // Send update to database API
+          await fetch(`/api/clientes/${selectedClient.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'ACTIVO (PLAN)' })
+          });
+          
+          setClients(prev => prev.map(c => {
+            if (c.id === selectedClient.id) {
+              return { ...c, status: "ACTIVO (PLAN)", alert: false };
+            }
+            return c;
+          }));
+        } catch (error) {
+          console.error("Error updating client status:", error);
         }
       }
 
@@ -161,7 +162,7 @@ export default function PagosPage() {
   };
 
   return (
-    <div className="space-y-6 lg:h-[calc(100vh-4rem)] flex flex-col">
+    <div className="space-y-6 lg:h-[calc(100vh-4rem)] flex flex-col min-h-screen">
       <header className="print:hidden">
         <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">
           Pagos e Inscripciones
@@ -171,10 +172,10 @@ export default function PagosPage() {
         </p>
       </header>
 
-      <div className="flex flex-col lg:flex-row gap-6 flex-1 overflow-hidden print:hidden">
+      <div className="flex flex-col lg:flex-row gap-6 flex-1 overflow-y-auto lg:overflow-hidden print:hidden">
         
         {/* Panel Izquierdo: Selección */}
-        <div className="w-full lg:w-7/12 flex flex-col gap-6 overflow-y-auto custom-scrollbar pb-6 pr-2">
+        <div className="w-full lg:w-7/12 flex flex-col gap-6 lg:overflow-y-auto custom-scrollbar pb-6 pr-2">
           
           {/* Buscar Cliente */}
           <div className="bg-oxford p-6 rounded-2xl border border-slate-700/60 shadow-lg">
