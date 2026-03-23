@@ -148,8 +148,24 @@ export default function ClientesPage() {
   };
 
   const handleLiquidarCredito = async (ticketId: string) => {
-    if (confirm("¿Confirmas que el cliente ha pagado esta deuda en EFECTIVO? (Esto debería actualizar la BD. Acción manual simulada, requiere extensión API).")) {
-       alert('Esta funcionalidad será soportada en la nueva versión de API.');
+    // Permitir liquidar tanto en efectivo como en tarjeta
+    if (confirm("¿Confirmas que el cliente ha pagado esta deuda? Esto sumará el flujo a las ventas del día y el adeudo desaparecerá.")) {
+       const method = confirm("Presiona Aceptar (OK) si el pago fue en EFECTIVO. Presiona Cancelar si fue con TARJETA.") ? 'CASH' : 'CARD';
+       try {
+         const res = await fetch(`/api/finanzas/liquidar`, {
+           method: 'PUT',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({ ticketId, metodo: method })
+         });
+         if (res.ok) {
+           await fetchClients();
+           if (viewClient) handleViewProfile(viewClient);
+         } else {
+           alert("Ocurrió un error al intentar liquidar la deuda.");
+         }
+       } catch (e) {
+         alert("Error de conexión al liquidar deuda.");
+       }
     }
   };
 

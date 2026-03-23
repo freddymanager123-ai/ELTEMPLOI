@@ -190,9 +190,6 @@ function SolidMetricCard({ title, value, icon: Icon, gradient }: any) {
        <div className="absolute right-[-10px] top-[10px] opacity-20 transform group-hover:scale-110 group-hover:rotate-12 transition-transform duration-300 pointer-events-none z-0">
           <Icon size={96} />
        </div>
-       <div className="bg-black/20 text-center py-2 text-xs font-bold uppercase tracking-widest hover:bg-black/30 transition cursor-pointer flex items-center justify-center gap-1 z-10 w-full mt-auto">
-          Más info <span className="text-sm leading-none ml-1">&rarr;</span>
-       </div>
     </div>
   );
 }
