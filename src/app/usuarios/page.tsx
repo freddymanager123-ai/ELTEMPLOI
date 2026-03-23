@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { Search, Plus, X, Edit, Trash2, ShieldCheck, UserPlus, Key } from "lucide-react";
 
-export const INITIAL_USERS = [
+const INITIAL_USERS = [
   { id: "1", name: "Admin Principal", email: "admin@eltemplo.com", role: "Administrador", status: "ACTIVO", password: "password123" },
   { id: "2", name: "Recepcionista Mañana", email: "recepcion.am@eltemplo.com", role: "Recepcionista", status: "ACTIVO", password: "password123" },
   { id: "3", name: "Carlos Coach", email: "entrenador@eltemplo.com", role: "Entrenador", status: "ACTIVO", password: "password123" },
