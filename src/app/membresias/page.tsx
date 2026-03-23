@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { Search, Plus, Edit, Trash2, X, Bookmark } from "lucide-react";
 import { INITIAL_PLANES } from './data';
 
-
 export default function MembresiasPage() {
   const [planes, setPlanes] = useState(INITIAL_PLANES);
   const [isModalOpen, setIsModalOpen] = useState(false);
